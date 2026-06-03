@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hotel Review Sentiment Analysis — Theory Study Guide</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c10;
+    --surface: #111318;
+    --surface2: #181c24;
+    --border: rgba(255,255,255,0.07);
+    --accent: #4fffb0;
+    --accent2: #ff6b6b;
+    --accent3: #ffd166;
+    --accent4: #74b9ff;
+    --text: #e8eaf0;
+    --muted: #7a8090;
+    --heading-font: 'Playfair Display', Georgia, serif;
+    --body-font: 'DM Sans', sans-serif;
+    --mono: 'IBM Plex Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--body-font);
+    font-size: 16px;
+    line-height: 1.75;
+    overflow-x: hidden;
+  }
+
+  /* ── NOISE OVERLAY ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  /* ── HEADER ── */
+  header {
+    position: relative;
+    padding: 80px 40px 60px;
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+  }
+  header::after {
+    content: '';
+    position: absolute;
+    top: -60px; right: -80px;
+    width: 500px; height: 500px;
+    background: radial-gradient(circle, rgba(78,255,176,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .header-tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    text-transform: uppercase;
+    border: 1px solid var(--accent);
+    padding: 4px 12px;
+    border-radius: 2px;
+    margin-bottom: 20px;
+    opacity: 0;
+    animation: fadeUp 0.6s 0.1s ease forwards;
+  }
+  header h1 {
+    font-family: var(--heading-font);
+    font-size: clamp(2rem, 5vw, 3.6rem);
+    font-weight: 900;
+    line-height: 1.1;
+    max-width: 800px;
+    opacity: 0;
+    animation: fadeUp 0.6s 0.25s ease forwards;
+  }
+  header h1 em {
+    font-style: italic;
+    color: var(--accent);
+  }
+  .header-meta {
+    margin-top: 20px;
+    font-size: 14px;
+    color: var(--muted);
+    font-family: var(--mono);
+    opacity: 0;
+    animation: fadeUp 0.6s 0.4s ease forwards;
+  }
+
+  /* ── NAV ── */
+  nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(10,12,16,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 40px;
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  nav::-webkit-scrollbar { display: none; }
+  nav a {
+    display: block;
+    padding: 14px 16px;
+    font-size: 12px;
+    font-family: var(--mono);
+    letter-spacing: 1px;
+    color: var(--muted);
+    text-decoration: none;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  nav a:hover { color: var(--text); border-color: var(--accent); }
+
+  /* ── LAYOUT ── */
+  main {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 60px 40px 120px;
+  }
+
+  /* ── SECTIONS ── */
+  section {
+    margin-bottom: 80px;
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  section.visible { opacity: 1; transform: none; }
+
+  .section-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+
+  h2 {
+    font-family: var(--heading-font);
+    font-size: clamp(1.6rem, 3vw, 2.2rem);
+    font-weight: 700;
+    margin-bottom: 28px;
+    position: relative;
+    padding-left: 20px;
+  }
+  h2::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 6px;
+    width: 4px; height: calc(100% - 8px);
+    background: var(--accent);
+    border-radius: 2px;
+  }
+
+  h3 {
+    font-family: var(--heading-font);
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--accent3);
+    margin: 32px 0 12px;
+  }
+
+  p { margin-bottom: 16px; color: #c8cad4; }
+
+  strong { color: var(--text); font-weight: 600; }
+
+  /* ── CARDS ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 28px 32px;
+    margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), transparent);
+  }
+  .card.red::before { background: linear-gradient(90deg, var(--accent2), transparent); }
+  .card.yellow::before { background: linear-gradient(90deg, var(--accent3), transparent); }
+  .card.blue::before { background: linear-gradient(90deg, var(--accent4), transparent); }
+
+  /* ── FORMULA BOX ── */
+  .formula {
+    background: var(--surface2);
+    border: 1px solid rgba(78,255,176,0.2);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 18px 24px;
+    margin: 20px 0;
+    font-family: var(--mono);
+    font-size: 15px;
+    color: var(--accent);
+    overflow-x: auto;
+  }
+  .formula .comment {
+    color: var(--muted);
+    font-size: 13px;
+    display: block;
+    margin-top: 8px;
+    font-family: var(--body-font);
+    font-style: italic;
+  }
+
+  /* ── PIPELINE ── */
+  .pipeline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    margin: 28px 0;
+    align-items: stretch;
+  }
+  .pipe-step {
+    flex: 1;
+    min-width: 120px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 20px 16px;
+    text-align: center;
+    position: relative;
+    transition: background 0.2s;
+  }
+  .pipe-step:hover { background: var(--surface2); }
+  .pipe-step:not(:last-child)::after {
+    content: '→';
+    position: absolute;
+    right: -14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--accent);
+    font-size: 20px;
+    z-index: 2;
+    background: var(--bg);
+    padding: 2px 3px;
+  }
+  .pipe-step .num {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--accent);
+    letter-spacing: 2px;
+    display: block;
+    margin-bottom: 6px;
+  }
+  .pipe-step .label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.3;
+  }
+  .pipe-step .sub {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  /* ── Q&A ACCORDION ── */
+  .qa-block {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .qa-q {
+    padding: 16px 20px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    background: var(--surface);
+    transition: background 0.2s;
+    user-select: none;
+  }
+  .qa-q:hover { background: var(--surface2); }
+  .qa-q .qmark {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+    font-weight: 600;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .qa-q .qtext {
+    font-weight: 500;
+    font-size: 15px;
+    flex: 1;
+  }
+  .qa-q .toggle {
+    font-size: 18px;
+    color: var(--muted);
+    flex-shrink: 0;
+    transition: transform 0.3s;
+  }
+  .qa-block.open .qa-q .toggle { transform: rotate(45deg); color: var(--accent); }
+  .qa-a {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease;
+    background: var(--surface2);
+  }
+  .qa-block.open .qa-a { max-height: 600px; }
+  .qa-a-inner { padding: 20px 24px; font-size: 15px; color: #c0c4d0; }
+  .qa-a-inner p { margin-bottom: 10px; }
+  .qa-a-inner p:last-child { margin-bottom: 0; }
+
+  /* ── TABLE ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    margin: 20px 0;
+  }
+  th {
+    background: var(--surface2);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    color: #c0c4d0;
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  /* ── HIGHLIGHT BOXES ── */
+  .highlight {
+    background: rgba(78,255,176,0.06);
+    border: 1px solid rgba(78,255,176,0.2);
+    border-radius: 6px;
+    padding: 18px 22px;
+    margin: 20px 0;
+  }
+  .highlight.warn {
+    background: rgba(255,107,107,0.06);
+    border-color: rgba(255,107,107,0.25);
+  }
+  .highlight.info {
+    background: rgba(116,185,255,0.06);
+    border-color: rgba(116,185,255,0.25);
+  }
+  .highlight .hl-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+  .highlight.warn .hl-title { color: var(--accent2); }
+  .highlight.info .hl-title { color: var(--accent4); }
+
+  /* ── VECTOR VISUAL ── */
+  .vector-vis {
+    display: flex;
+    gap: 6px;
+    align-items: flex-end;
+    margin: 20px 0;
+    flex-wrap: wrap;
+  }
+  .vec-word {
+    text-align: center;
+    flex: 1;
+    min-width: 60px;
+  }
+  .vec-word .word {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 4px;
+    word-break: break-all;
+  }
+  .vec-word .bar {
+    border-radius: 3px 3px 0 0;
+    transition: height 0.3s;
+  }
+  .vec-word .score {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text);
+    display: block;
+    margin-top: 4px;
+    text-align: center;
+  }
+
+  /* ── GRID 2COL ── */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 20px 0;
+  }
+  @media (max-width: 640px) {
+    .grid-2 { grid-template-columns: 1fr; }
+    .pipeline { flex-direction: column; }
+    .pipe-step:not(:last-child)::after { content: '↓'; right: 50%; transform: none; bottom: -18px; top: auto; }
+    main { padding: 40px 20px 80px; }
+    header { padding: 50px 20px 40px; }
+    nav { padding: 0 16px; }
+  }
+
+  /* ── METRIC BADGES ── */
+  .metrics {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 16px 0;
+  }
+  .metric {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 20px;
+    text-align: center;
+    flex: 1;
+    min-width: 100px;
+  }
+  .metric .val {
+    font-family: var(--mono);
+    font-size: 1.8rem;
+    font-weight: 600;
+    color: var(--accent);
+    display: block;
+  }
+  .metric .lbl {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  /* ── LIMITATION CARD ── */
+  .limit-card {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 16px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px 28px;
+    margin-bottom: 16px;
+    border-left: 3px solid var(--accent2);
+    align-items: start;
+  }
+  .limit-num {
+    font-family: var(--mono);
+    font-size: 1.4rem;
+    color: var(--accent2);
+    font-weight: 700;
+    line-height: 1;
+    padding-top: 4px;
+  }
+  .limit-title {
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  .limit-desc { font-size: 14px; color: #aab0be; margin-bottom: 10px; }
+  .fix-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+  .fix-text { font-size: 14px; color: #c0c4d0; }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    text-align: center;
+    padding: 40px;
+    border-top: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  code {
+    font-family: var(--mono);
+    background: var(--surface2);
+    padding: 2px 7px;
+    border-radius: 3px;
+    font-size: 13px;
+    color: var(--accent3);
+  }
+
+  ul {
+    padding-left: 20px;
+    margin-bottom: 16px;
+    color: #c0c4d0;
+  }
+  ul li { margin-bottom: 8px; }
+  ul li::marker { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-tag">Text Mining — Theory Study Guide</div>
+  <h1>Hotel Review <em>Sentiment Analysis</em> &amp; Rating Estimation</h1>
+  <div class="header-meta">Mendel University in Brno · FBE · 2025/2026 · NLP + Logistic Regression + TF-IDF</div>
+</header>
+
+<nav>
+  <a href="#overview">Overview</a>
+  <a href="#pipeline">Pipeline</a>
+  <a href="#preprocessing">Preprocessing</a>
+  <a href="#tfidf">TF-IDF</a>
+  <a href="#model">Logistic Regression</a>
+  <a href="#evaluation">Evaluation</a>
+  <a href="#aggregation">Aggregation</a>
+  <a href="#limitations">Limitations</a>
+  <a href="#qa">Professor Q&amp;A</a>
+</nav>
+
+<main>
+
+  <!-- ══ SECTION 1: OVERVIEW ══ -->
+  <section id="overview">
+    <div class="section-label">01 — What is the project</div>
+    <h2>Project Overview</h2>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="section-label">Input</div>
+        <p><strong>Raw text reviews</strong> from 10,000 hotel customers. Each entry contains a hotel name, a free-text review, and a 1–5 star rating.</p>
+      </div>
+      <div class="card blue">
+        <div class="section-label">Output</div>
+        <p><strong>Per-hotel sentiment score</strong> (0–1) representing the proportion of positively classified reviews. A ranked list of hotels by guest satisfaction.</p>
+      </div>
+    </div>
+
+    <p>The project builds an end-to-end <strong>Natural Language Processing (NLP) pipeline</strong>: it takes messy, human-written text, transforms it into numbers a machine can learn from, trains a classifier, and then aggregates predictions into actionable hotel rankings.</p>
+
+    <div class="highlight">
+      <div class="hl-title">Core Question the Model Answers</div>
+      <p>Given only the <em>text</em> of a review — without looking at the star rating — is this guest happy or unhappy?</p>
+    </div>
+  </section>
+
+  <!-- ══ SECTION 2: PIPELINE ══ -->
+  <section id="pipeline">
+    <div class="section-label">02 — End-to-end flow</div>
+    <h2>Full Pipeline Architecture</h2>
+
+    <p>Every step transforms data into a form the next step can use. Nothing is skipped — the model never sees raw text directly.</p>
+
+    <div class="pipeline">
+      <div class="pipe-step">
+        <span class="num">01</span>
+        <span class="label">Raw CSV</span>
+        <span class="sub">10,000 rows</span>
+      </div>
+      <div class="pipe-step">
+        <span class="num">02</span>
+        <span class="label">Feature Select &amp; Label</span>
+        <span class="sub">3 cols + binary y</span>
+      </div>
+      <div class="pipe-step">
+        <span class="num">03</span>
+        <span class="label">Text Cleaning</span>
+        <span class="sub">lower / punct / lemma</span>
+      </div>
+      <div class="pipe-step">
+        <span class="num">04</span>
+        <span class="label">TF-IDF</span>
+        <span class="sub">→ (9999 × 5000) matrix</span>
+      </div>
+      <div class="pipe-step">
+        <span class="num">05</span>
+        <span class="label">Train / Test Split</span>
+        <span class="sub">80% / 20%</span>
+      </div>
+      <div class="pipe-step">
+        <span class="num">06</span>
+        <span class="label">Logistic Regression</span>
+        <span class="sub">binary classifier</span>
+      </div>
+      <div class="pipe-step">
+        <span class="num">07</span>
+        <span class="label">Evaluate</span>
+        <span class="sub">accuracy, F1</span>
+      </div>
+      <div class="pipe-step">
+        <span class="num">08</span>
+        <span class="label">Aggregate</span>
+        <span class="sub">hotel rankings</span>
+      </div>
+    </div>
+
+    <div class="highlight info">
+      <div class="hl-title">Key insight about the pipeline</div>
+      <p>The star rating is used <em>only during training</em> to create the ground-truth label. At inference time the model predicts sentiment purely from text — that is the whole point. If we already had the rating, we wouldn't need the model.</p>
+    </div>
+  </section>
+
+  <!-- ══ SECTION 3: PREPROCESSING ══ -->
+  <section id="preprocessing">
+    <div class="section-label">03 — Text cleaning theory</div>
+    <h2>Text Preprocessing</h2>
+
+    <p>Raw text is full of noise. Preprocessing normalises it so that semantically identical words map to the same token and irrelevant characters do not inflate the feature space.</p>
+
+    <table>
+      <thead>
+        <tr><th>Step</th><th>What it does</th><th>Why it matters</th><th>Example</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Lowercasing</strong></td>
+          <td>All text → lowercase</td>
+          <td>"Great" and "great" must be the same token</td>
+          <td><code>Great → great</code></td>
+        </tr>
+        <tr>
+          <td><strong>Punctuation removal</strong></td>
+          <td>Strip non-alphanumeric chars</td>
+          <td>Punctuation carries no sentiment signal for TF-IDF</td>
+          <td><code>great!!! → great</code></td>
+        </tr>
+        <tr>
+          <td><strong>Tokenization</strong></td>
+          <td>Split string → word list</td>
+          <td>Enables per-word operations</td>
+          <td><code>"great room" → ["great","room"]</code></td>
+        </tr>
+        <tr>
+          <td><strong>Stopword removal</strong></td>
+          <td>Delete common function words</td>
+          <td>Words like "the","is","and" appear everywhere — zero discriminative power</td>
+          <td><code>["the","great","room"] → ["great","room"]</code></td>
+        </tr>
+        <tr>
+          <td><strong>Lemmatization</strong></td>
+          <td>Reduce to dictionary base form</td>
+          <td>Consolidates inflected forms; improves generalisation</td>
+          <td><code>running → run, rooms → room</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Lemmatization vs Stemming — what's the difference?</h3>
+    <div class="grid-2">
+      <div class="card">
+        <div class="section-label">Lemmatization (used here)</div>
+        <p>Uses a vocabulary and morphological analysis to return the <strong>proper dictionary form</strong> (lemma). "better" → "good". Linguistically correct.</p>
+      </div>
+      <div class="card red">
+        <div class="section-label">Stemming (NOT used)</div>
+        <p>Crude suffix-chopping. "running" → "runn". Faster but produces non-words. Can hurt accuracy on sentiment tasks.</p>
+      </div>
+    </div>
+
+    <div class="highlight">
+      <div class="hl-title">Sentiment distribution after labelling</div>
+      <p>Out of 9,999 clean records: <strong>7,285 positive</strong> (≥4 stars) and <strong>2,714 negative</strong> (&lt;4 stars). This ~73/27 split is a class imbalance that directly impacts model performance — discussed in Limitations.</p>
+    </div>
+  </section>
+
+  <!-- ══ SECTION 4: TF-IDF ══ -->
+  <section id="tfidf">
+    <div class="section-label">04 — Feature extraction theory</div>
+    <h2>TF-IDF Vectorization</h2>
+
+    <p>The model cannot read text. TF-IDF converts each review into a <strong>row of numbers</strong> — one number per vocabulary word — encoding how important each word is to that review.</p>
+
+    <h3>What is TF-IDF?</h3>
+    <p>TF-IDF stands for <strong>Term Frequency × Inverse Document Frequency</strong>. It rewards words that are common in one document but rare across the whole corpus.</p>
+
+    <div class="formula">
+      TF(t, d) = count of term t in document d / total terms in d
+      <span class="comment">How often does this word appear in this review?</span>
+    </div>
+    <div class="formula">
+      IDF(t) = log( N / df(t) )  + 1
+      <span class="comment">N = total documents; df(t) = number of docs containing term t. Words appearing in every doc get low IDF.</span>
+    </div>
+    <div class="formula">
+      TF-IDF(t, d) = TF(t, d) × IDF(t)
+      <span class="comment">High score = word is frequent HERE but rare elsewhere → highly discriminative signal.</span>
+    </div>
+
+    <h3>Concrete example</h3>
+    <p>Imagine a vocabulary of 6 words and the review <em>"the room was dirty dirty"</em> (after cleaning: "room dirty dirty"):</p>
+    <div class="vector-vis">
+      <div class="vec-word">
+        <span class="word">clean</span>
+        <div class="bar" style="height:4px;background:#4fffb0;"></div>
+        <span class="score">0.00</span>
+      </div>
+      <div class="vec-word">
+        <span class="word">room</span>
+        <div class="bar" style="height:30px;background:#4fffb0;"></div>
+        <span class="score">0.29</span>
+      </div>
+      <div class="vec-word">
+        <span class="word">dirty</span>
+        <div class="bar" style="height:80px;background:#ff6b6b;"></div>
+        <span class="score">0.82</span>
+      </div>
+      <div class="vec-word">
+        <span class="word">staff</span>
+        <div class="bar" style="height:4px;background:#4fffb0;"></div>
+        <span class="score">0.00</span>
+      </div>
+      <div class="vec-word">
+        <span class="word">great</span>
+        <div class="bar" style="height:4px;background:#4fffb0;"></div>
+        <span class="score">0.00</span>
+      </div>
+      <div class="vec-word">
+        <span class="word">location</span>
+        <div class="bar" style="height:4px;background:#4fffb0;"></div>
+        <span class="score">0.00</span>
+      </div>
+    </div>
+    <p>The output is the vector <code>[0.00, 0.29, 0.82, 0.00, 0.00, 0.00]</code>. "dirty" gets a high score because it appears twice in this review and is rare across the corpus — exactly the kind of word that distinguishes a negative review.</p>
+
+    <h3>What is the shape of the output?</h3>
+    <div class="card">
+      <p>In this project the vocabulary is capped at <strong>5,000 terms</strong>. After processing 9,999 reviews, the TF-IDF output is a sparse matrix of shape:</p>
+      <div class="formula">X = (9,999 rows) × (5,000 columns)</div>
+      <p>Each row is one review. Each column is one vocabulary word. Most cells are <strong>0</strong> (sparse matrix) because a single review uses only a small fraction of all 5,000 words.</p>
+    </div>
+
+    <h3>How does this matrix feed into the model?</h3>
+    <p>Each <strong>row</strong> of the matrix (one review = one 5,000-dimensional vector) becomes a <strong>training example</strong>. The corresponding <strong>label</strong> (0 or 1) is the target. Logistic Regression learns a weight for each of the 5,000 dimensions that best separates positive from negative reviews.</p>
+
+    <div class="highlight warn">
+      <div class="hl-title">What TF-IDF cannot do</div>
+      <p>TF-IDF is a <strong>bag-of-words</strong> model — it counts words but completely <strong>ignores word order</strong>. "Not good" and "Good" could receive similar vectors if "not" is filtered as a stopword. This is a fundamental limitation addressed in Section 7.</p>
+    </div>
+  </section>
+
+  <!-- ══ SECTION 5: MODEL ══ -->
+  <section id="model">
+    <div class="section-label">05 — Classification algorithm</div>
+    <h2>Logistic Regression — How It Works</h2>
+
+    <p><strong>Yes, a model IS trained in this project.</strong> Logistic Regression is not a rule-based system — it <em>learns</em> the weights from data during the training phase.</p>
+
+    <h3>The core idea</h3>
+    <p>Logistic Regression calculates a weighted sum of all TF-IDF features, then squashes it through the <strong>sigmoid function</strong> to produce a probability between 0 and 1.</p>
+
+    <div class="formula">
+      z = w₀ + w₁·x₁ + w₂·x₂ + ... + w₅₀₀₀·x₅₀₀₀
+      <span class="comment">Dot product of learned weights w with the TF-IDF vector x</span>
+    </div>
+    <div class="formula">
+      P(positive | review) = σ(z) = 1 / (1 + e^(−z))
+      <span class="comment">Sigmoid maps any real number to (0, 1) — a probability</span>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="section-label">Decision rule</div>
+        <p>If <code>σ(z) ≥ 0.5</code> → predict <strong>positive (1)</strong><br>If <code>σ(z) &lt; 0.5</code> → predict <strong>negative (0)</strong></p>
+      </div>
+      <div class="card yellow">
+        <div class="section-label">What "training" means</div>
+        <p>Finding the weights <code>w₁…w₅₀₀₀</code> that <strong>minimise the log-loss</strong> (cross-entropy) on the training data. This is done via gradient descent / L-BFGS.</p>
+      </div>
+    </div>
+
+    <h3>Why Logistic Regression and not a neural network?</h3>
+    <table>
+      <thead><tr><th>Property</th><th>Logistic Regression</th><th>Deep Learning (e.g. BERT)</th></tr></thead>
+      <tbody>
+        <tr><td>Interpretable</td><td>✅ Inspect feature weights directly</td><td>❌ Black box</td></tr>
+        <tr><td>Speed</td><td>✅ Seconds on 10k samples</td><td>❌ GPU, hours</td></tr>
+        <tr><td>Handles sparse TF-IDF</td><td>✅ Native</td><td>⚠️ Needs embeddings</td></tr>
+        <tr><td>Captures context/negation</td><td>❌ Linear boundary</td><td>✅ Self-attention</td></tr>
+        <tr><td>Needs hyperparameter tuning</td><td>Minimal</td><td>Extensive</td></tr>
+      </tbody>
+    </table>
+
+    <h3>The 80/20 Train-Test Split</h3>
+    <p>The dataset is randomly split: <strong>~7,999 reviews for training</strong> (model sees labels and learns weights) and <strong>~2,000 reviews for testing</strong> (model never sees these labels — used only to measure real-world performance). The fixed seed <code>random_state=42</code> ensures the split is reproducible.</p>
+
+    <div class="highlight info">
+      <div class="hl-title">Why do we need a test set at all?</div>
+      <p>To detect <strong>overfitting</strong>. A model can memorise training data and score 100% on it while failing on new data. The test set simulates unseen real-world reviews and gives an honest estimate of generalisation performance.</p>
+    </div>
+  </section>
+
+  <!-- ══ SECTION 6: EVALUATION ══ -->
+  <section id="evaluation">
+    <div class="section-label">06 — Metrics explained</div>
+    <h2>Model Evaluation Metrics</h2>
+
+    <p>The model achieved the following on the held-out 2,000-review test set:</p>
+    <div class="metrics">
+      <div class="metric"><span class="val">85%</span><span class="lbl">Overall Accuracy</span></div>
+      <div class="metric"><span class="val">0.86</span><span class="lbl">Neg. Precision</span></div>
+      <div class="metric"><span class="val">0.56</span><span class="lbl">Neg. Recall</span></div>
+      <div class="metric"><span class="val">0.96</span><span class="lbl">Pos. Recall</span></div>
+      <div class="metric"><span class="val">0.79</span><span class="lbl">Macro F1</span></div>
+    </div>
+
+    <table>
+      <thead><tr><th>Metric</th><th>Formula</th><th>Meaning in plain English</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>Accuracy</strong></td>
+          <td><code>(TP+TN) / Total</code></td>
+          <td>Of all 2000 reviews, 85% were classified correctly</td>
+        </tr>
+        <tr>
+          <td><strong>Precision (neg)</strong></td>
+          <td><code>TP / (TP+FP)</code></td>
+          <td>When the model says "negative", it's right 86% of the time</td>
+        </tr>
+        <tr>
+          <td><strong>Recall (neg)</strong></td>
+          <td><code>TP / (TP+FN)</code></td>
+          <td>Of all actual negative reviews, the model catches only 56%</td>
+        </tr>
+        <tr>
+          <td><strong>F1-Score</strong></td>
+          <td><code>2 × P × R / (P+R)</code></td>
+          <td>Harmonic mean of precision and recall — balances both</td>
+        </tr>
+        <tr>
+          <td><strong>Macro avg F1</strong></td>
+          <td>Average F1 per class</td>
+          <td>Treats both classes equally, penalises poor neg. recall</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="highlight warn">
+      <div class="hl-title">The 85% accuracy trap</div>
+      <p>Because 73% of reviews are positive, a naive model that predicts <em>everything as positive</em> would already score 73% accuracy. The <strong>low negative recall (0.56)</strong> is the real story — the model misses nearly half of all negative reviews. This is caused by class imbalance.</p>
+    </div>
+  </section>
+
+  <!-- ══ SECTION 7: AGGREGATION ══ -->
+  <section id="aggregation">
+    <div class="section-label">07 — Business output</div>
+    <h2>Hotel Rating Aggregation</h2>
+
+    <p>Once the model is trained and validated, it is applied to <strong>all 9,999 reviews</strong> (not just the test set) to generate a sentiment prediction for each review. Then:</p>
+
+    <div class="formula">
+      overall_rating(hotel h) = mean( predicted_sentiment ) for all reviews of hotel h
+      <span class="comment">= proportion of reviews predicted as positive (1) for that hotel</span>
+    </div>
+
+    <p>A hotel with an <code>overall_rating</code> of <strong>1.0</strong> means every single review was predicted positive. A rating of <strong>0.6</strong> means 60% of reviews were positive. The output is then sorted descending to produce a ranked leaderboard.</p>
+
+    <div class="highlight info">
+      <div class="hl-title">Input–Output summary of the full system</div>
+      <ul>
+        <li><strong>Input sentence →</strong> preprocess → TF-IDF vector → logistic regression → P(positive) → binary prediction (0 or 1)</li>
+        <li><strong>Many sentences for one hotel →</strong> mean of predictions → hotel score (0–1)</li>
+        <li><strong>All hotels →</strong> sorted table + visualisations</li>
+      </ul>
+    </div>
+
+    <h3>Two output visualizations</h3>
+    <div class="grid-2">
+      <div class="card">
+        <div class="section-label">Histogram + KDE</div>
+        <p>Shows the <strong>distribution</strong> of all hotel ratings. The strong spike near 1.0 confirms most hotels have overwhelmingly positive reviews — reflecting both genuine satisfaction and the class imbalance bias.</p>
+      </div>
+      <div class="card blue">
+        <div class="section-label">Top-10 Bar Chart</div>
+        <p>Ranks the <strong>10 best hotels</strong> by predicted sentiment score, providing a directly actionable business output for hotel operators or booking platforms.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ SECTION 8: LIMITATIONS ══ -->
+  <section id="limitations">
+    <div class="section-label">08 — Critical analysis</div>
+    <h2>Limitations &amp; How to Fix Them</h2>
+
+    <div class="limit-card">
+      <div class="limit-num">01</div>
+      <div>
+        <div class="limit-title">Class Imbalance Skew</div>
+        <div class="limit-desc">73% of reviews are positive. The model sees far fewer negative examples during training, so it develops a bias toward predicting "positive". Negative recall is only 0.56 — the model misses 44% of complaints.</div>
+        <div class="fix-label">How to fix</div>
+        <div class="fix-text">
+          <strong>(a) Oversampling</strong> — Duplicate or synthetically generate negative examples (SMOTE — Synthetic Minority Oversampling Technique).<br>
+          <strong>(b) Undersampling</strong> — Randomly remove positive examples to balance classes.<br>
+          <strong>(c) Class weights</strong> — Set <code>class_weight='balanced'</code> in sklearn's LogisticRegression to penalise misclassifying the minority class more heavily.
+        </div>
+      </div>
+    </div>
+
+    <div class="limit-card">
+      <div class="limit-num">02</div>
+      <div>
+        <div class="limit-title">Context-Blindness (Bag-of-Words Constraint)</div>
+        <div class="limit-desc">TF-IDF discards word order completely. "not good" and "good, not bad" may have similar vector representations. Sarcasm, irony, and multi-word phrases are invisible to the model.</div>
+        <div class="fix-label">How to fix</div>
+        <div class="fix-text">
+          <strong>(a) N-grams</strong> — Extend TF-IDF to include bigrams/trigrams (e.g., "not_good" as a single feature) via <code>ngram_range=(1,2)</code>.<br>
+          <strong>(b) Word embeddings</strong> — Replace TF-IDF with pre-trained word2vec or GloVe vectors that encode semantic similarity.<br>
+          <strong>(c) Transformer models</strong> — Use BERT or RoBERTa which process the full sentence with self-attention, capturing context, negation, and sarcasm.
+        </div>
+      </div>
+    </div>
+
+    <div class="limit-card">
+      <div class="limit-num">03</div>
+      <div>
+        <div class="limit-title">Vocabulary Feature Capping (top 5,000 words)</div>
+        <div class="limit-desc">Low-frequency but highly diagnostic words (e.g., "mould", "cockroach", "plumbing") may be excluded, causing the model to miss specific complaint categories important for hospitality diagnostics.</div>
+        <div class="fix-label">How to fix</div>
+        <div class="fix-text">
+          <strong>(a) Increase max_features</strong> — Try 10,000 or 20,000 and monitor the accuracy-vs-computation tradeoff.<br>
+          <strong>(b) Use sublinear TF scaling</strong> — <code>sublinear_tf=True</code> in TfidfVectorizer reduces the dominance of very frequent terms, giving rarer words more relative weight.<br>
+          <strong>(c) Domain-specific vocabulary</strong> — Add a custom vocabulary of known hospitality complaint terms.
+        </div>
+      </div>
+    </div>
+
+    <div class="limit-card">
+      <div class="limit-num">04</div>
+      <div>
+        <div class="limit-title">Linear Modeling Constraints</div>
+        <div class="limit-desc">Logistic Regression assumes sentiment can be separated by a linear boundary in TF-IDF space. Human language is non-linear — sentiment depends on complex interactions between words that a linear model cannot capture.</div>
+        <div class="fix-label">How to fix</div>
+        <div class="fix-text">
+          <strong>(a) Non-linear classifiers</strong> — Use Random Forest, Gradient Boosting (XGBoost), or SVM with an RBF kernel on the same TF-IDF features.<br>
+          <strong>(b) LSTM / GRU</strong> — Recurrent networks maintain sequential memory, capturing long-range dependencies in text.<br>
+          <strong>(c) Transformers (BERT)</strong> — The current state of the art for NLP; bidirectional attention captures full sentence context. Fine-tuning on hotel reviews would dramatically increase recall on negative examples.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ SECTION 9: Q&A ══ -->
+  <section id="qa">
+    <div class="section-label">09 — Exam preparation</div>
+    <h2>Professor's Questions — Answered</h2>
+
+    <div class="qa-block">
+      <div class="qa-q" onclick="toggleQA(this)">
+        <span class="qmark">Q</span>
+        <span class="qtext">Do you actually train a model in this project, or just use a pre-built one?</span>
+        <span class="toggle">+</span>
+      </div>
+      <div class="qa-a"><div class="qa-a-inner">
+        <p>Yes, a model is <strong>trained from scratch</strong> on this dataset. Logistic Regression starts with random (or zero) weights and iteratively adjusts them using gradient descent to minimise the binary cross-entropy loss on the 80% training split. After training, the learned weights are specific to this corpus — they encode which words in hotel reviews are most predictive of positive or negative sentiment.</p>
+      </div></div>
+    </div>
+
+    <div class="qa-block">
+      <div class="qa-q" onclick="toggleQA(this)">
+        <span class="qmark">Q</span>
+        <span class="qtext">What exactly happens when you put a sentence into TF-IDF?</span>
+        <span class="toggle">+</span>
+      </div>
+      <div class="qa-a"><div class="qa-a-inner">
+        <p>The sentence is first preprocessed (lowercased, punctuation removed, stopwords removed, lemmatized). Then each remaining word is looked up in the <strong>pre-fitted vocabulary</strong> (5,000 words). The output is a sparse numeric vector of length 5,000 where:</p>
+        <ul>
+          <li>Position i holds the TF-IDF score of the i-th vocabulary word in this review.</li>
+          <li>Most positions are 0 (that word didn't appear).</li>
+          <li>A high score at position i means word i is both frequent in this review AND rare across the corpus — a strong discriminative signal.</li>
+        </ul>
+        <p>Critically, the vocabulary and IDF values are <strong>fitted on the training set only</strong> and then applied (transformed) to new data. This prevents information leakage from the test set.</p>
+      </div></div>
+    </div>
+
+    <div class="qa-block">
+      <div class="qa-q" onclick="toggleQA(this)">
+        <span class="qmark">Q</span>
+        <span class="qtext">How does the TF-IDF vector get used inside Logistic Regression?</span>
+        <span class="toggle">+</span>
+      </div>
+      <div class="qa-a"><div class="qa-a-inner">
+        <p>Logistic Regression computes a <strong>weighted dot product</strong> between the TF-IDF vector (x) and the learned weight vector (w):</p>
+        <p><code>z = w · x = w₁x₁ + w₂x₂ + ... + w₅₀₀₀x₅₀₀₀</code></p>
+        <p>This scalar z is then passed through the sigmoid: <code>σ(z) = 1/(1+e^{-z})</code>, yielding the probability of the review being positive. Words with large positive weights push z up (towards positive). Words with large negative weights push z down (towards negative). Most words have weights near zero (irrelevant).</p>
+      </div></div>
+    </div>
+
+    <div class="qa-block">
+      <div class="qa-q" onclick="toggleQA(this)">
+        <span class="qmark">Q</span>
+        <span class="qtext">Why is accuracy 85% but the model still performs poorly on negative reviews?</span>
+        <span class="toggle">+</span>
+      </div>
+      <div class="qa-a"><div class="qa-a-inner">
+        <p>Because of <strong>class imbalance</strong>. The dataset has 73% positive reviews. A model that predicted "positive" for every single review would achieve 73% accuracy without learning anything. The model here scores 85%, which sounds good, but the negative recall of 0.56 reveals that it misses 44% of genuine complaints.</p>
+        <p>In a hospitality business context this is dangerous: misclassifying a complaint as positive means the hotel never acts on it. <strong>Macro F1 (0.79)</strong> is a better summary metric because it averages across classes equally, penalising the poor negative recall.</p>
+      </div></div>
+    </div>
+
+    <div class="qa-block">
+      <div class="qa-q" onclick="toggleQA(this)">
+        <span class="qmark">Q</span>
+        <span class="qtext">Why is the threshold for "positive" set at rating ≥ 4, and not ≥ 3 or ≥ 5?</span>
+        <span class="toggle">+</span>
+      </div>
+      <div class="qa-a"><div class="qa-a-inner">
+        <p>This is a <strong>design choice</strong>. A 4-star rating clearly indicates satisfaction; a 5-star threshold would create too few positive examples (only top enthusiasts), and a 3-star threshold treats neutral reviews as positive, which blurs the signal. The ≥4 boundary creates a reasonably clean, noise-resistant separation that aligns with real-world hospitality conventions (4–5 = good, 1–3 = problematic).</p>
+        <p>The tradeoff is that it exacerbates class imbalance — 4-star and 5-star reviews dominate most hotel datasets.</p>
+      </div></div>
+    </div>
+
+    <div class="qa-block">
+      <div class="qa-q" onclick="toggleQA(this)">
+        <span class="qmark">Q</span>
+        <span class="qtext">Why are we using the star rating at all if the model learns from text?</span>
+        <span class="toggle">+</span>
+      </div>
+      <div class="qa-a"><div class="qa-a-inner">
+        <p>The star rating serves as the <strong>ground-truth label (y)</strong> during supervised learning. We assume the customer who wrote the review and gave 1 star was genuinely negative. This label supervision is what allows the model to learn which text patterns correlate with positive vs negative sentiment.</p>
+        <p>At <strong>inference time</strong> (predicting on new reviews), no star rating is needed — the model predicts from text alone. This is the business value: automating sentiment extraction for platforms where reviews arrive without explicit ratings, or to detect mismatches between rating and text.</p>
+      </div></div>
+    </div>
+
+    <div class="qa-block">
+      <div class="qa-q" onclick="toggleQA(this)">
+        <span class="qmark">Q</span>
+        <span class="qtext">What does "sparse matrix" mean and why does it matter?</span>
+        <span class="toggle">+</span>
+      </div>
+      <div class="qa-a"><div class="qa-a-inner">
+        <p>The TF-IDF output is a matrix with 9,999 rows × 5,000 columns = ~50 million values. However, a single review typically uses only 50–200 unique words out of the 5,000 vocabulary — so ~96% of values are zero. Storing all 50 million floats would waste memory. Scipy's <strong>sparse matrix</strong> format stores only the non-zero positions and values, reducing memory usage by over 95%. Logistic Regression in scikit-learn is optimised to work directly with sparse inputs.</p>
+      </div></div>
+    </div>
+
+    <div class="qa-block">
+      <div class="qa-q" onclick="toggleQA(this)">
+        <span class="qmark">Q</span>
+        <span class="qtext">Can this model understand "The hotel was NOT great"? Why or why not?</span>
+        <span class="toggle">+</span>
+      </div>
+      <div class="qa-a"><div class="qa-a-inner">
+        <p><strong>Poorly, or not at all.</strong> After stopword removal, "not" may be filtered out. Even if kept, TF-IDF creates two separate features: "not" and "great". The model only sees the weights of each word independently — it has no way of knowing that "not" negates "great". The word "great" has a strong positive weight from training, so the review might actually be classified as <em>positive</em> — a false prediction.</p>
+        <p>Fixes: n-gram TF-IDF (treating "not_great" as one feature), or a Transformer model that uses attention to process the full sentence context.</p>
+      </div></div>
+    </div>
+
+    <div class="qa-block">
+      <div class="qa-q" onclick="toggleQA(this)">
+        <span class="qmark">Q</span>
+        <span class="qtext">What is the difference between precision and recall, and which matters more here?</span>
+        <span class="toggle">+</span>
+      </div>
+      <div class="qa-a"><div class="qa-a-inner">
+        <p><strong>Precision</strong> = of all reviews I called negative, how many really were negative? (False positive cost)<br><strong>Recall</strong> = of all reviews that were genuinely negative, how many did I catch? (False negative cost)</p>
+        <p>In this business context, <strong>recall on the negative class matters more</strong>. Missing a genuine complaint (false negative) means the hotel doesn't know about a real problem and can't fix it — a costly business error. A false positive (calling a happy guest "unhappy") triggers unnecessary follow-up but is less harmful. So maximising negative recall, even at some precision cost, is the right objective — which this model currently fails at (0.56).</p>
+      </div></div>
+    </div>
+
+    <div class="qa-block">
+      <div class="qa-q" onclick="toggleQA(this)">
+        <span class="qmark">Q</span>
+        <span class="qtext">How would you improve this project if you had more time?</span>
+        <span class="toggle">+</span>
+      </div>
+      <div class="qa-a"><div class="qa-a-inner">
+        <p><strong>Short-term improvements (same model family):</strong></p>
+        <ul>
+          <li>Add bigrams/trigrams to TF-IDF to capture negation patterns</li>
+          <li>Use <code>class_weight='balanced'</code> to address imbalance</li>
+          <li>Increase vocabulary to 10,000+ features</li>
+          <li>Tune the regularisation parameter C in Logistic Regression via cross-validation</li>
+        </ul>
+        <p><strong>Long-term improvements (better architectures):</strong></p>
+        <ul>
+          <li>Fine-tune a pre-trained BERT model on this dataset — contextual embeddings would solve negation/sarcasm issues</li>
+          <li>Use aspect-based sentiment analysis to score <em>specific hotel attributes</em> (cleanliness, staff, location) separately</li>
+          <li>Collect more negative reviews (better data collection strategy) or use data augmentation</li>
+        </ul>
+      </div></div>
+    </div>
+
+    <div class="qa-block">
+      <div class="qa-q" onclick="toggleQA(this)">
+        <span class="qmark">Q</span>
+        <span class="qtext">Why fix random_state=42 during train-test split?</span>
+        <span class="toggle">+</span>
+      </div>
+      <div class="qa-a"><div class="qa-a-inner">
+        <p><strong>Reproducibility.</strong> Without a fixed seed, every run of the code produces a different random split, which means reported accuracy numbers could vary from run to run — making it impossible to know if a change you made actually improved the model, or if you just got a lucky split. Fixing the seed ensures every run of the code produces <em>exactly the same</em> training and test sets, so results can be independently verified and compared.</p>
+      </div></div>
+    </div>
+
+    <div class="qa-block">
+      <div class="qa-q" onclick="toggleQA(this)">
+        <span class="qmark">Q</span>
+        <span class="qtext">What is the IDF component for, and what would happen without it?</span>
+        <span class="toggle">+</span>
+      </div>
+      <div class="qa-a"><div class="qa-a-inner">
+        <p>IDF (Inverse Document Frequency) <strong>down-weights words that appear in almost every document</strong>. Without IDF, raw Term Frequency (TF) would heavily weight words like "hotel", "room", "stay" — words that appear in nearly every review and carry zero discriminative power for positive/negative classification. IDF divides by the number of documents containing the term (log-scaled), so ubiquitous words get scores near zero regardless of how often they appear in a single review. This ensures the vector is dominated by <em>distinctive</em> words rather than common filler words.</p>
+      </div></div>
+    </div>
+
+  </section>
+
+</main>
+
+<footer>
+  Text Mining Study Guide · Mendel University in Brno · FBE 2025/2026 · Le Minh Khoi Vu, Quoc Khanh Huynh
+</footer>
+
+<script>
+  // ── Accordion ──
+  function toggleQA(el) {
+    const block = el.closest('.qa-block');
+    block.classList.toggle('open');
+  }
+
+  // ── Scroll-reveal ──
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.08 });
+  document.querySelectorAll('section').forEach(s => io.observe(s));
+</script>
+</body>
+</html>
